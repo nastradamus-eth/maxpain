@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>MAXPAIN</title>
+  <style>
+    :root { --bg: #000; }
+    * { box-sizing: border-box; }
+    html, body { height: 100%; margin: 0; background: var(--bg); }
+    #wrap { position: fixed; inset: 0; background: #000; }
+    video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+    #overlay { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,.6); }
+    #overlay button { font: 600 clamp(16px, 3vw, 22px)/1.1 system-ui, -apple-system, Segoe UI, Roboto, sans-serif; padding: 14px 22px; border-radius: 12px; border: 0; cursor: pointer; }
+    #hint { position: absolute; left: 50%; bottom: 16px; transform: translateX(-50%); color: #fff; font: 500 12px/1.4 system-ui, -apple-system, Segoe UI, Roboto, sans-serif; opacity: .8; display: none; text-align: center; padding: 0 12px; }
+    #muteBtn { position: absolute; right: 12px; top: 12px; background: rgba(255,255,255,.9); border: 0; padding: 8px 10px; border-radius: 10px; font: 600 12px/1 system-ui, -apple-system; cursor: pointer; display: none; }
+  </style>
+</head>
+<body>
+  <div id="wrap">
+    <!--
+      Put your MP4 next to this file as "video.mp4" or pass a custom path with ?src=PATH.mp4
+      Extra options:
+        - ?controls=1  (show native controls)
+        - ?loop=0      (disable looping)
+    -->
+    <video id="vid" autoplay muted playsinline></video>
+    <div id="overlay">
+      <button id="play">▶️ Play fullscreen</button>
+    </div>
+    <button id="muteBtn" type="button">🔊 Unmute</button>
+    <div id="hint">Tip: Press M to mute/unmute. Esc exits fullscreen.</div>
+  </div>
+
+  <script>
+    const params = new URLSearchParams(location.search);
+    const src = params.get('src') || 'video.mp4';
+    const showControls = params.get('controls') === '1';
+    const loop = params.get('loop') !== '0';
+
+    const wrap = document.getElementById('wrap');
+    const v = document.getElementById('vid');
+    const overlay = document.getElementById('overlay');
+    const playBtn = document.getElementById('play');
+    const muteBtn = document.getElementById('muteBtn');
+    const hint = document.getElementById('hint');
+
+    v.src = src;
+    v.loop = loop;
+    if (showControls) v.setAttribute('controls','');
+
+    // iOS/Safari: autoplay works only with muted + playsinline.
+    // Fullscreen without a user gesture is blocked, so we use a click.
+    async function goFullscreen() {
+      try {
+        if (wrap.requestFullscreen) await wrap.requestFullscreen();
+        else if (wrap.webkitRequestFullscreen) await wrap.webkitRequestFullscreen();
+      } catch (e) {
+        // Some browsers will still block without a gesture — safe to ignore.
+      }
+
+      // iOS fallback: enter fullscreen directly on the video when available
+      try {
+        if (!document.fullscreenElement && v.webkitEnterFullscreen) v.webkitEnterFullscreen();
+      } catch (e) {}
+    }
+
+    async function startPlayback() {
+      try { await v.play(); } catch (e) { /* may fail if not muted */ }
+    }
+
+    playBtn.addEventListener('click', async () => {
+      await goFullscreen();
+      await startPlayback();
+      overlay.style.display = 'none';
+      hint.style.display = 'block';
+      muteBtn.style.display = 'inline-block';
+    });
+
+    // Mute/unmute controls
+    muteBtn.addEventListener('click', () => {
+      v.muted = !v.muted;
+      muteBtn.textContent = v.muted ? '🔇 Mute' : '🔊 Unmute';
+      // Ensure audio starts if unmuted
+      if (!v.muted) v.play().catch(() => {});
+    });
+
+    // Keyboard shortcuts
+    document.addEventListener('keydown', (e) => {
+      if (e.key.toLowerCase() === 'm') {
+        v.muted = !v.muted;
+        muteBtn.textContent = v.muted ? '🔇 Mute' : '🔊 Unmute';
+        if (!v.muted) v.play().catch(() => {});
+        muteBtn.style.display = 'inline-block';
+      }
+    });
+
+    // Keep video perfectly scaled on orientation changes (CSS handles via object-fit)
+    window.addEventListener('resize', () => {
+      // No extra logic required
+    });
+
+    // Show mute button once the video can play
+    v.addEventListener('canplay', () => { muteBtn.style.display = 'inline-block'; });
+
+    // If autoplay succeeds (some desktops), start on first click anywhere
+    document.addEventListener('click', (ev) => {
+      if (overlay.style.display !== 'none' && ev.target !== playBtn) {
+        playBtn.click();
+      }
+    }, { once: true });
+  </script>
+</body>
+</html>
